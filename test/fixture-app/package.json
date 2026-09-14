@@ -1,0 +1,13 @@
+{
+  "name": "shipcheck-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "dependencies": {
+    "next": "14.2.3",
+    "express": "4.19.2",
+    "multer": "1.4.5",
+    "@supabase/supabase-js": "2.45.0",
+    "jsonwebtoken": "9.0.2",
+    "cors": "2.8.5"
+  }
+}

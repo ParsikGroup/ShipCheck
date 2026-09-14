@@ -1,0 +1,16 @@
+# shipcheck output — never commit a run. evidence.json is safe by design
+# (no secret values), but it maps your infrastructure and there is no reason
+# for it to be in a repo.
+shipcheck-run/
+*-run/
+evidence.json
+findings.json
+REPORT.md
+FIXME.md
+fix.sh
+rollback.sh
+verify.sh
+
+__pycache__/
+*.pyc
+.DS_Store

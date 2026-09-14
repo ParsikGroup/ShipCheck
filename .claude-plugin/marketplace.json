@@ -1,0 +1,36 @@
+{
+  "name": "parsiktechgroup",
+  "owner": {
+    "name": "The Parsik Tech Group",
+    "url": "https://github.com/ParsikGroup"
+  },
+  "description": "Free, open-source security tooling from The Parsik Tech Group.",
+  "plugins": [
+    {
+      "name": "shipcheck",
+      "source": "./",
+      "displayName": "ShipCheck",
+      "description": "Security check for people who ship fast. Read-only audit of your server and your code, a plain-English report, a fix brief any AI agent can work through, and tested fix recipes.",
+      "author": {
+        "name": "The Parsik Tech Group",
+        "url": "https://github.com/ParsikGroup"
+      },
+      "homepage": "https://github.com/ParsikGroup/ShipCheck",
+      "repository": "https://github.com/ParsikGroup/ShipCheck",
+      "license": "MIT",
+      "category": "security",
+      "keywords": [
+        "security",
+        "hardening",
+        "vps",
+        "server",
+        "linux",
+        "docker",
+        "rate-limiting",
+        "secrets",
+        "vibe-coding",
+        "pre-launch"
+      ]
+    }
+  ]
+}

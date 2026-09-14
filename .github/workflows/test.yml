@@ -1,0 +1,63 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  contract:
+    name: contract + fixture tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            bash -n "$f" || { echo "syntax error in $f"; exit 1; }
+          done
+
+      - name: Python syntax
+        run: |
+          for f in $(find . -name '*.py' -not -path './.git/*'); do
+            python3 -c "import ast,sys; ast.parse(open('$f').read())" || exit 1
+          done
+
+      - name: Manifest validity and field limits
+        run: |
+          python3 - <<'PY'
+          import json, re, sys
+          fail = False
+          d = json.load(open('.claude-plugin/plugin.json'))
+          if len(d['description']) > 500:
+              print(f"plugin.json description is {len(d['description'])} chars, limit is 500"); fail = True
+          m = json.load(open('.claude-plugin/marketplace.json'))
+          assert m['plugins'][0]['name'] == d['name'], "marketplace/plugin name mismatch"
+          t = open('skills/shipcheck/SKILL.md').read()
+          fm = t.split('---')[1]
+          desc = re.search(r'^description: >\n((?:  .*\n)+)', fm, re.M).group(1)
+          desc = ' '.join(l.strip() for l in desc.splitlines())
+          if len(desc) > 1024:
+              print(f"SKILL.md description is {len(desc)} chars, limit is 1024"); fail = True
+          if d['version'] != re.search(r'version:\s*"([^"]+)"', fm).group(1):
+              print("plugin.json and SKILL.md versions disagree"); fail = True
+          sys.exit(1 if fail else 0)
+          PY
+
+      # The authoritative check. Catches anything the JSON checks above miss —
+      # schema changes, bad source paths, name collisions. If this breaks, the
+      # install command in the README stops working for everyone.
+      - name: Validate plugin and marketplace manifests
+        run: |
+          npm install -g @anthropic-ai/claude-code >/dev/null 2>&1
+          claude plugin validate .
+          claude plugin validate .claude-plugin/plugin.json
+
+      # Proves every planted vulnerability is still detected, then enforces the
+      # three promises in the README: fix.sh contains nothing that can lock a
+      # user out, no secret value reaches any output, and a run that could not
+      # see everything never presents as clean.
+      - name: Fixture and contract tests
+        run: ./test/run-fixture.sh
