@@ -14,3 +14,5 @@ verify.sh
 __pycache__/
 *.pyc
 .DS_Store
+outputs/
+shipcheck-outputs/
