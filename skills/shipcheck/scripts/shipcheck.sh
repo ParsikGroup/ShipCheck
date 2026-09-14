@@ -164,12 +164,38 @@ cap  autoupdate  sh -c 'systemctl is-enabled unattended-upgrades 2>/dev/null;
 cap  ubuntu_pro  sh -c 'pro status --format json 2>/dev/null | head -c 2000'
 
 # --- containers
-cap docker_ps      sh -c 'docker ps --format "{{.Names}}\t{{.Image}}\t{{.Ports}}" 2>/dev/null'
+# Resolve ONE way of talking to the daemon and use it for everything below. The
+# health marker is written only if that same path works, so the report can never
+# claim container coverage it did not actually have. An earlier version checked
+# reachability separately from the command that collected the data: with
+# passwordless sudo available it would report full coverage while the container
+# details were silently empty.
+DOCKER_CMD=""
+if have docker; then
+  if docker info >/dev/null 2>&1; then
+    DOCKER_CMD="docker"
+  elif [ -n "$SUDO" ] && $SUDO docker info >/dev/null 2>&1; then
+    DOCKER_CMD="$SUDO docker"
+  else
+    skip "docker:needs-root-or-docker-group"
+  fi
+fi
+
+if [ -n "$DOCKER_CMD" ]; then
+  # Zero containers is a complete answer, not a failed check. Without this, an
+  # idle Docker host got a report opening with "this check is incomplete",
+  # which is how a working tool teaches people to ignore its warnings.
+  printf 'daemon=reachable containers=%s\n' \
+    "$($DOCKER_CMD ps -q 2>/dev/null | wc -l | tr -d ' ')" > "$TMP/docker_state"
+  $DOCKER_CMD ps --format "{{.Names}}\t{{.Image}}\t{{.Ports}}" > "$TMP/docker_ps" 2>/dev/null
+  for id in $($DOCKER_CMD ps -q 2>/dev/null); do
+    # Single quotes: this is a Go template, and $p / $b belong to Docker, not
+    # bash. Double-quoted, bash expands them and dies on "unbound variable".
+    $DOCKER_CMD inspect "$id" --format '{{.Name}}|user={{if .Config.User}}{{.Config.User}}{{else}}ROOT{{end}}|priv={{.HostConfig.Privileged}}|net={{.HostConfig.NetworkMode}}|mounts={{range .Mounts}}{{.Source}}:{{.RW}} {{end}}|ports={{range $p,$b := .NetworkSettings.Ports}}{{$p}}->{{$b}} {{end}}' 2>/dev/null
+  done > "$TMP/docker_inspect"
+fi
 cap docker_sock    sh -c 'ls -l /var/run/docker.sock 2>/dev/null'
 cap docker_daemon  sh -c 'cat /etc/docker/daemon.json 2>/dev/null'
-cap docker_inspect sh -c 'for id in $(docker ps -q 2>/dev/null); do
-     docker inspect "$id" --format "{{.Name}}|user={{if .Config.User}}{{.Config.User}}{{else}}ROOT{{end}}|priv={{.HostConfig.Privileged}}|net={{.HostConfig.NetworkMode}}|mounts={{range .Mounts}}{{.Source}}:{{.RW}} {{end}}|ports={{range $p,$b := .NetworkSettings.Ports}}{{$p}}->{{$b}} {{end}}" 2>/dev/null
-   done'
 cap compose_ports sh -c 'find /srv /opt /home /root -maxdepth 4 -name "docker-compose*.y*ml" 2>/dev/null | head -10 |
    while read -r f; do echo "### $f"; grep -nE "^\s*-\s*\"?[0-9]+:[0-9]+|privileged|docker.sock|network_mode" "$f" 2>/dev/null; done'
 
@@ -519,7 +545,7 @@ if [ "$DO_HOST" -eq 1 ]; then
   health firewall "$( { have nft || have iptables || have ufw || have firewall-cmd; } && echo 1 || echo 0)" "$TMP/nft_ruleset"
   health firewall_ufw "$(have ufw && echo 1 || echo 0)" "$TMP/ufw_status"
   health firewall_iptables "$(have iptables-save && echo 1 || echo 0)" "$TMP/iptables_save"
-  health docker "$(have docker && echo 1 || echo 0)" "$TMP/docker_inspect"
+  health docker "$(have docker && echo 1 || echo 0)" "$TMP/docker_state"
   health packages "$( { have dpkg || have rpm; } && echo 1 || echo 0)" "$TMP/upgradable"
   health accounts 1 "$TMP/uid0"
 fi

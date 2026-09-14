@@ -1,6 +1,6 @@
 {
   "name": "shipcheck",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Security check and hardening for people who ship fast. Point any AI at your server and your code: get a plain-English report, a fix brief it can work through, and a script that applies the obvious hardening automatically without ever costing you SSH access. Checks exposure (including IPv6), firewall, SSH, Docker, patching, backups; and in code: leaked keys, committed .env, missing login rate limiting, unvalidated uploads, SQL injection, open Firebase rules, secrets shipped to the browser.",
   "author": {
     "name": "The Parsik Tech Group",

@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.1 — 2026-09-14
+
+### The container check has never worked
+
+Found on the first real Docker host shipcheck was ever pointed at.
+
+The `docker inspect` Go template was written in double quotes inside a
+single-quoted `sh -c` string, so the shell expanded `$p` and `$b` to empty
+before Docker saw it:
+
+```
+{{range , := .NetworkSettings.Ports}}{{}}->{{}} {{end}}
+```
+
+That is not a valid template. `docker inspect` failed on every container, its
+stderr went to `/dev/null`, the output file was empty — and **every machine with
+running containers has been reporting the container check as blind since
+0.1.0**, silently collecting nothing about privileged containers, containers
+running as root, mounted `docker.sock`, host network mode, writable host mounts,
+or published port bindings.
+
+The one thing that stopped this being a silent false-clean is the coverage-gap
+system added in 0.2.0: the report opened with "this check is incomplete" and
+named docker every single time. It announced its own failure for months. That is
+the entire argument for building it.
+
+### Also fixed in the same area
+
+- **Zero containers is no longer a coverage gap.** An idle Docker host reported
+  as "incomplete" because health was keyed on whether `docker inspect` returned
+  rows rather than whether the daemon was reachable.
+- **Docker data is now collected through sudo when needed.** Previously the
+  collector only ever tried the unprivileged path, so a box where the user is
+  not in the `docker` group produced nothing even under `sudo`.
+- **Coverage is claimed only for the path that actually ran.** An intermediate
+  version of this fix tested the daemon with sudo while collecting without it,
+  which would have reported full container coverage while capturing nothing.
+  Reachability and collection now share one resolved command.
+
+Net effect: shipcheck sees containers for the first time.
+
 ## 0.3.0 — 2026-09-14
 
 shipcheck now fixes the server, not just the report on it.

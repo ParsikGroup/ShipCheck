@@ -13,6 +13,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # A loose copy of a script at the repo root is how people end up running a
+      # stale version and getting "command not found" from a file they can see.
+      - name: No stray scripts at the repo root
+        run: |
+          STRAY=$(git ls-files | grep -E '^[^/]+\.(sh|py)$' || true)
+          if [ -n "$STRAY" ]; then
+            echo "These belong under skills/shipcheck/scripts/, not the repo root:"
+            echo "$STRAY"
+            exit 1
+          fi
+          echo "ok - no duplicate scripts at the repo root"
+
       - name: Shell syntax
         run: |
           for f in $(find . -name '*.sh' -not -path './.git/*'); do

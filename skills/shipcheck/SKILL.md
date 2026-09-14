@@ -15,7 +15,7 @@ description: >
   anyone out. Also applies the obvious server hardening automatically behind an
   auto-revert guard that restores the machine if nobody confirms.
 metadata:
-  version: "0.3.0"
+  version: "0.3.1"
   license: MIT
 ---
 
