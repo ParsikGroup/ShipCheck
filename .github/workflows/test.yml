@@ -61,3 +61,17 @@ jobs:
       # see everything never presents as clean.
       - name: Fixture and contract tests
         run: ./test/run-fixture.sh
+
+      # The headline safety claim: apply, do not confirm, and prove the machine
+      # puts itself back. Runs on the throwaway CI box, never on anything real.
+      - name: secureserver apply / revert / deadman
+        run: sudo -E env CI=true ./test/run-secureserver.sh
+
+      # The package-installing steps, which the behavioural test skips for speed.
+      # Validates the generated fail2ban jail actually parses.
+      - name: secureserver package steps
+        run: |
+          sudo ./skills/shipcheck/scripts/secureserver.sh --yes --no-deadman --only updates,fail2ban
+          sudo fail2ban-client -t
+          sudo apt-config dump | grep 'Periodic::Unattended-Upgrade "1"'
+          sudo "$(ls -d /var/backups/secureserver/*/ | head -1)rollback.sh" --auto

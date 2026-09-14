@@ -1,7 +1,7 @@
 {
   "name": "shipcheck",
-  "version": "0.2.1",
-  "description": "Security check for people who ship fast. Point any AI at your server and your code and get back a plain-English report plus a fix brief it can work straight through. Checks internet exposure (including IPv6), firewall, SSH, Docker, patching and backups on the server; and in your code: leaked keys, committed .env, missing rate limiting on login, unvalidated file uploads, unprotected routes, SQL injection, open Firebase rules and secrets shipped to the browser. Read-only. Ships tested fix recipes.",
+  "version": "0.3.0",
+  "description": "Security check and hardening for people who ship fast. Point any AI at your server and your code: get a plain-English report, a fix brief it can work through, and a script that applies the obvious hardening automatically without ever costing you SSH access. Checks exposure (including IPv6), firewall, SSH, Docker, patching, backups; and in code: leaked keys, committed .env, missing login rate limiting, unvalidated uploads, SQL injection, open Firebase rules, secrets shipped to the browser.",
   "author": {
     "name": "The Parsik Tech Group",
     "url": "https://github.com/ParsikGroup"
@@ -34,7 +34,11 @@
     "nextjs",
     "express",
     "code-review",
-    "ai-agent"
+    "ai-agent",
+    "secureserver",
+    "fail2ban",
+    "unattended-upgrades",
+    "cis"
   ],
   "repository": "https://github.com/ParsikGroup/ShipCheck"
 }

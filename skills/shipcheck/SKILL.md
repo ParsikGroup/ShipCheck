@@ -2,19 +2,20 @@
 name: shipcheck
 description: >
   Use this when someone wants to know whether their server or their app is safe
-  to put on the internet — "is my server secure", "check my VPS", "am I exposed",
-  "did I leak any API keys", "audit my server", "harden my droplet", "check my
-  app before I launch", "is my .env safe", "add rate limiting", "is my upload
-  form safe", "I think I got hacked", "what ports are open". Read-only check of
-  the server (exposure including IPv6, firewall, SSH, Docker, accounts, patching,
-  backups) and the code (leaked keys, committed .env, missing rate limiting on
-  login, unvalidated file uploads, unprotected routes, SQL injection, weak
-  password handling, open CORS, open Firebase rules, secrets shipped to the
-  browser). Produces a plain-English report, a fix brief any AI agent can work
-  through, tested fix recipes per framework, and a fix script limited to changes
-  that cannot lock anyone out.
+  to put on the internet, or wants it hardened — "is my server secure", "check my
+  VPS", "am I exposed", "did I leak any API keys", "audit my server", "harden my
+  droplet", "secure my server", "check my app before I launch", "is my .env safe",
+  "add rate limiting", "I think I got hacked", "what ports are open". Read-only
+  check of the server (exposure including IPv6, firewall, SSH, Docker, accounts,
+  patching, backups) and the code (leaked keys, committed .env, no rate limiting
+  on login, unvalidated uploads, unprotected routes, SQL injection, weak password
+  handling, open CORS, open Firebase rules, secrets shipped to the browser).
+  Produces a plain-English report, a fix brief any AI can work through, tested fix
+  recipes per framework, and a fix script limited to changes that cannot lock
+  anyone out. Also applies the obvious server hardening automatically behind an
+  auto-revert guard that restores the machine if nobody confirms.
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   license: MIT
 ---
 
@@ -141,6 +142,38 @@ patch: list the routes, ask which should be public, then protect the rest.
 explicit list of what the user must rotate and where. That is the part that
 actually stops an attack.
 
+## Hardening the server, not just the code
+
+When the report says the box itself is soft — no automatic updates, no brute
+force protection, loose file permissions, logs that vanish on reboot — offer
+`secureserver.sh`. It fixes all of that in one run:
+
+```bash
+sudo ./scripts/secureserver.sh --dry-run   # show the plan, change nothing
+sudo ./scripts/secureserver.sh             # do it
+```
+
+It applies automatic security updates, fail2ban with the user's own IP
+whitelisted, kernel and network hardening, persistent logs, file permission
+fixes, idle-shell timeout and clock sync. It backs up everything first.
+
+**The part you must tell them, in these words:** the machine will undo all of it
+by itself in ten minutes unless they open a **second** terminal, connect again,
+and run the `confirm.sh` command it prints. Keep the first terminal open. If the
+second connection fails, do nothing and wait — the machine repairs itself.
+
+That guard is armed before the first change, so a script that dies halfway
+through still leaves a recoverable machine.
+
+**What it deliberately will not do:** edit `sshd_config`, change firewall rules,
+touch PAM, sudoers, accounts or reboot. Those are the highest-value fixes left
+and they are exactly the ones that end a session on a headless box. They live in
+`SECURESERVER.md` at the repo root, as a supervised procedure with the
+two-terminal drill written out. Follow it with the user present; do not
+improvise it, and do not run any of it unattended.
+
+Undo, at any time: `sudo /var/backups/secureserver/<timestamp>/rollback.sh`
+
 ## How to talk about findings
 
 - **Lead with what an attacker does, not what the setting is.** Not "sshd permits
@@ -174,3 +207,5 @@ Do not oversell it. The report says this too; do not contradict it.
 - `references/exposure.md` — proving what the internet can actually reach
 - `references/writing-findings.md` — plain-English explanations that land
 - `references/safety.md` — what you must never do, and why each rule exists
+- `../../SECURESERVER.md` — the supervised hardening procedure for SSH,
+  firewall, PAM and anything else that can cost someone access

@@ -79,6 +79,41 @@ One command. It collects, analyses and writes the whole report, then prints
 where everything went — `ShipCheck/outputs/` by default. Every flag is optional:
 with none it scans this server plus the code in the current directory.
 
+## And then it fixes the server for you
+
+Reporting a problem is half a product. `secureserver.sh` applies the obvious
+hardening in one command:
+
+```bash
+sudo ./skills/shipcheck/scripts/secureserver.sh --dry-run   # show the plan
+sudo ./skills/shipcheck/scripts/secureserver.sh             # do it
+```
+
+Automatic security updates. fail2ban on SSH, with your own IP whitelisted so it
+cannot ban you. Kernel and network hardening. Logs that survive a reboot. File
+permissions on `/etc/shadow`, `/root`, cron and SSH host keys. Idle shells
+disconnected. Clock sync so your logs have honest timestamps.
+
+**It cannot lock you out, and it does not ask you to take that on faith.**
+
+Every change is backed up before it is made, and an auto-revert timer is armed
+*before* the first one. If you do not open a second terminal and run `confirm.sh`
+within ten minutes, the machine puts itself back exactly how it was. Walk away
+mid-run, close your laptop, lose your connection — you get your server back.
+
+It refuses to touch `sshd_config`, firewall rules, PAM, sudoers, user accounts,
+or reboot. Those are the highest-value fixes left, and they are exactly the ones
+that end a session on a box with no console. They live in
+[`SECURESERVER.md`](SECURESERVER.md) as a supervised procedure — key-only SSH,
+default-deny firewall, the two-terminal drill, and the Docker/ufw trap most
+guides get wrong — for you and your AI to work through together.
+
+Undo any run, any time:
+
+```bash
+sudo /var/backups/secureserver/<timestamp>/rollback.sh
+```
+
 ## What you get
 
 | File | What it's for |
@@ -88,6 +123,8 @@ with none it scans this server plus the code in the current directory.
 | **fix-recipes.md** | Travels with the brief. Tested implementations per framework, so the agent doesn't improvise. |
 | **fix.sh** | `sudo ./fix.sh`. Only changes that cannot lock you out or break a service. Backs up first, safe to re-run, has a rollback. |
 | **verify.sh** | Proves the fixes landed. |
+| **secureserver.sh** | Hardens the box itself. Auto-reverts unless you confirm. |
+| **SECURESERVER.md** | The supervised procedure for SSH and firewall changes. |
 
 ## Works with any AI
 
@@ -97,6 +134,7 @@ how to run the check, how to read the output, and what it must never touch.
 
 ```
 "Read AGENTS.md and use shipcheck on my server."
+"Read SECURESERVER.md and harden this box."
 ```
 
 The Claude Code plugin is just a convenience wrapper. Clone the repo and point
@@ -166,7 +204,12 @@ Issues and PRs welcome. Three things that will get a PR rejected:
 3. **Anything that lets a run present as clean when a check silently failed.** If a
    parser breaks, the report must say so at the top.
 
-`test/contract-test.sh` enforces all three against a real run. Run it in CI.
+4. **Anything that puts an access-affecting change into `secureserver.sh`,** or
+   that applies a change before the auto-revert guard is armed.
+
+`test/contract-test.sh` enforces all four against a real run, and
+`test/run-secureserver.sh` proves the guard actually fires on a disposable
+machine. Both run in CI.
 
 New checks are very welcome, especially ones that catch real mistakes people
 actually make. Keep them zero-dependency where you can.

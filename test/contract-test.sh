@@ -11,6 +11,8 @@
 #   2. No secret VALUE appears in any output file.
 #   3. A run that could not see everything never presents as clean.
 #   4. The agent brief ships with the recipes it tells the agent to read.
+#   5. secureserver.sh contains NO access-affecting change, and arms its
+#      auto-revert guard before the first thing it modifies.
 set -u
 RUN="${1:-}"
 [ -n "$RUN" ] && [ -d "$RUN" ] || { echo "usage: $0 <shipcheck run dir>"; exit 2; }
@@ -90,6 +92,60 @@ if [ -f "$RUN/FIXME.md" ]; then
   fi
 else
   echo "  skip — no FIXME.md in $RUN"
+fi
+
+echo
+echo "== 6. secureserver.sh must contain no access-affecting change =="
+SS="$(dirname "$0")/../skills/shipcheck/scripts/secureserver.sh"
+if [ -f "$SS" ]; then
+  # Strip comments and every message-printing helper, so we are looking at
+  # commands the script actually runs, not text it prints about them.
+  BODY=$(grep -vE '^[[:space:]]*#' "$SS" |
+         grep -vE '(say|echo|note|warn|ok|bad|dim|add_plan|printf)[[:space:]]+["'"'"']' |
+         grep -vE 'Automatic-Reboot|reboot-required')
+  BANNED_SS='sshd_config|ssh_config|PasswordAuthentication|PermitRootLogin|AuthorizedKeys|\bufw\b|\biptables\b|\bip6tables\b|firewall-cmd|/etc/pam|\bpam_|visudo|/etc/sudoers|\buserdel\b|\busermod\b|\bgroupdel\b|\breboot\b|\bshutdown\b|systemctl +(restart|reload) +sshd?\b'
+  HITS=$(printf '%s\n' "$BODY" | grep -nE "$BANNED_SS" || true)
+  if [ -n "$HITS" ]; then
+    echo "  FAIL — secureserver.sh can affect access:"; echo "$HITS"
+    echo "         Those changes belong in SECURESERVER.md, supervised, not in a script."
+    FAIL=1
+  else
+    echo "  ok — secureserver.sh touches no SSH config, firewall, PAM, sudoers or account"
+  fi
+else
+  echo "  skip — secureserver.sh not found"
+fi
+
+echo
+echo "== 7. the auto-revert guard must be armed before the first change =="
+if [ -f "$SS" ]; then
+  # The guard must be armed before the apply section begins. Everything that
+  # mutates the machine lives after that marker, by construction.
+  ARM=$(grep -n 'DEADMAN_ARMED=1' "$SS" | head -1 | cut -d: -f1)
+  MUT=$(grep -n '== applying ==' "$SS" | head -1 | cut -d: -f1)
+  if [ -n "$ARM" ] && [ -n "$MUT" ] && [ "$ARM" -lt "$MUT" ]; then
+    echo "  ok — guard armed at line $ARM, apply section starts at line $MUT"
+  else
+    echo "  FAIL — the apply section (line ${MUT:-?}) starts before the guard is armed (line ${ARM:-never})."
+    echo "         A script that dies halfway through must still leave a recoverable machine."
+    FAIL=1
+  fi
+fi
+
+echo
+echo "== 8. the generated rollback and confirm scripts are valid bash =="
+if [ -f "$SS" ]; then
+  T=$(mktemp -d)
+  sed -n "/<<'ROLLBACK'/,/^ROLLBACK$/p" "$SS" | sed '1d;$d' > "$T/rollback.sh"
+  sed -n "/<<CONFIRM/,/^CONFIRM$/p" "$SS" | sed '1d;$d' | sed 's/\\\$/$/g' > "$T/confirm.sh"
+  for f in "$T/rollback.sh" "$T/confirm.sh"; do
+    if [ -s "$f" ] && bash -n "$f" 2>/dev/null; then
+      echo "  ok — generated $(basename "$f")"
+    else
+      echo "  FAIL — generated $(basename "$f") is empty or not valid bash"; FAIL=1
+    fi
+  done
+  rm -rf "$T"
 fi
 
 echo

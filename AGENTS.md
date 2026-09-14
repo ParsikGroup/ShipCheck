@@ -80,7 +80,31 @@ It has three sections and they mean different things:
   user and offer to walk them through it. These are the ones that can end their
   access to their own server.
 
-### 5. Answer the question they actually asked
+### 5. Harden the server itself
+
+If the report says the machine is soft — no automatic updates, no brute-force
+protection, loose permissions, logs that do not survive a reboot:
+
+```bash
+sudo ./skills/shipcheck/scripts/secureserver.sh --dry-run   # plan only
+sudo ./skills/shipcheck/scripts/secureserver.sh             # apply
+```
+
+Everything it does is reversible and none of it can cost the user access. It
+backs up first and arms an auto-revert timer before the first change.
+
+**Say this to the user, clearly, or the run is wasted:** the machine undoes
+everything by itself in ten minutes unless they open a SECOND terminal, connect
+again, and run the `confirm.sh` command it printed. If that second connection
+fails, they do nothing and wait — the machine repairs itself.
+
+It will not touch `sshd_config`, the firewall, PAM, sudoers, accounts, or
+reboot. Those changes are real and valuable, and they are also how people lose
+servers. `SECURESERVER.md` walks a human through them with a revert timer on
+every step. Follow it with the user watching. Never run any of it unattended,
+and never `systemctl restart ssh` — `reload` does not drop live connections.
+
+### 6. Answer the question they actually asked
 
 The collector reports what the machine *believes* is listening. Whether the
 internet can reach it is a different question.

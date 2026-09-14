@@ -1,5 +1,79 @@
 # Changelog
 
+## 0.3.0 — 2026-09-14
+
+shipcheck now fixes the server, not just the report on it.
+
+### `secureserver.sh`
+
+One command applies the hardening that every Linux server should have and most
+do not: automatic security updates (never automatic reboots), fail2ban on SSH,
+kernel and network hardening, logs that survive a reboot, file permissions on
+`/etc/shadow`, `/root`, cron and SSH host keys, idle-shell timeout, clock sync,
+and Ctrl+Alt+Del disabled at the console.
+
+`--dry-run` prints the plan and stops. `--only` and `--skip` select steps.
+`--tmout` sets the idle timeout. Debian and Ubuntu only; it refuses to guess on
+anything else rather than half-apply a set of changes it has not been tested
+against.
+
+### The auto-revert guard
+
+Every change is backed up before it is made, and a revert timer is armed
+**before the first one**. If nobody runs `confirm.sh` from a second session
+within the timeout, the machine restores itself — original file contents,
+original permissions, original sysctl values, packages removed. Close your
+laptop mid-run and you still have your server.
+
+This is the reason the feature is shippable at all. `test/run-secureserver.sh`
+proves it on a disposable machine: apply, deliberately do not confirm, wait, and
+assert the machine is byte-identical to how it started.
+
+Falls back to a detached timer when transient systemd units are unavailable.
+Refuses to run at all without a terminal attached unless you pass
+`--no-deadman` explicitly, because a guard nobody can confirm just wastes the
+run.
+
+### What it will not do, by design
+
+No `sshd_config` edit. No firewall rule or policy change. No PAM, sudoers, user
+account or password change. No reboot. Each of those can end a session on a
+machine with no console, and a script cannot know whether there is a console.
+
+Those fixes are the highest-value ones left, so they are not dropped — they move
+to `SECURESERVER.md`, a model-agnostic brief that walks a human and their AI
+through key-only SSH and a default-deny firewall with a revert timer on every
+step. It covers the traps: sshd drop-in files are first-match-wins so a `99-`
+file loses to Ubuntu's `50-cloud-init.conf`; `reload` not `restart`; socket
+activation ignoring `Port` on 22.10+; and Docker publishing ports straight past
+ufw through the `DOCKER-USER` chain.
+
+### Contract tests
+
+Three new checks, all with proven negative cases:
+
+- `secureserver.sh` contains no SSH config, firewall, PAM, sudoers, account or
+  reboot command.
+- The guard is armed before the apply section begins.
+- The generated `rollback.sh` and `confirm.sh` are valid bash.
+
+### Fixed during the build
+
+`dpkg -s <pkg>` returns success for a package that was **removed but not
+purged** — its status is then `deinstall ok config-files` and the binaries are
+gone. Used as an is-installed test, it made secureserver skip the install and
+then try to configure and start software that was not on the machine. Anyone who
+had ever run `apt-get remove fail2ban` would have got a run that reported
+"installed" and did nothing. Now checked with an explicit
+`dpkg-query -W -f='${Status}'` match.
+
+### Deliberately excluded from the sysctl set
+
+`ip_forward` (breaks Docker networking), `rp_filter` (breaks asymmetric routing
+and some VPNs), `accept_ra` (breaks IPv6 on most VPS). Each is a real CIS
+recommendation and each has broken real servers. They are named in the config
+file so the next person knows the omission was a decision.
+
 ## 0.2.1 — 2026-09-14
 
 Usability. Nothing about what gets checked changed; the tools just stopped
