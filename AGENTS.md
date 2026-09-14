@@ -32,11 +32,15 @@ documents. That is a different kind of product.
 
 ```bash
 # server + code + live site — every flag is optional
-sudo ./shipcheck.sh --out ./shipcheck-run --app /path/to/code --site https://their-site.com
+sudo ./shipcheck.sh --app /path/to/code --site https://their-site.com
 
 # code only
-./shipcheck.sh --no-host --app . --out ./shipcheck-run
+./shipcheck.sh --no-host --app .
 ```
+
+One command does the whole thing: it collects, analyses and writes the reports.
+Results land in `<repo>/outputs` unless you pass `--out DIR`, and the last lines
+of the run print the exact paths.
 
 It is **read-only**. It installs nothing, starts nothing, changes nothing, and
 never records the value of a secret.
@@ -45,14 +49,17 @@ never records the value of a secret.
 permissions are invisible, and that is half the value. If they refuse, run it
 anyway — it will say what it could not check.
 
-### 3. Analyse and report
+### 3. Read the output
+
+The run already wrote everything. You only need `analyze.py` / `report.py`
+yourself if the collector told you the report step failed, or if you used
+`--collect-only`:
 
 ```bash
-python3 analyze.py ./shipcheck-run
-python3 report.py  ./shipcheck-run
+python3 analyze.py <run dir> && python3 report.py <run dir>
 ```
 
-That writes five files into the run directory:
+The run directory holds:
 
 | File | What it is |
 |---|---|

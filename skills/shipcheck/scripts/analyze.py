@@ -29,6 +29,34 @@ SEV = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 # --------------------------------------------------------------------------
 
 
+
+def default_run_dir():
+    """Where shipcheck.sh puts things, so no argument is ever needed.
+
+    <repo>/outputs is the current default. The others are places older versions
+    wrote to, checked so an existing run is still found instead of producing a
+    confusing "no evidence" error.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(here, "..", "..", ".."))
+    for cand in (os.path.join(repo, "outputs"),
+                 "./shipcheck-outputs",
+                 "./shipcheck-run",
+                 os.path.join(here, "shipcheck-run")):
+        if os.path.isfile(os.path.join(cand, "evidence.json")):
+            return cand
+    return os.path.join(repo, "outputs")
+
+
+def unreadable(path, what):
+    """The sudo trap: root owns the run at mode 700 and you cannot read it."""
+    d = path if os.path.isdir(path) else os.path.dirname(path) or "."
+    sys.exit(
+        "Cannot read %s in %s — it is owned by root.\n"
+        "This happens when shipcheck.sh was run with sudo by an older version.\n"
+        "Fix it with:  sudo chown -R $USER:$USER %s" % (what, os.path.abspath(d), d))
+
+
 def load(path):
     if os.path.isdir(path):
         path = os.path.join(path, "evidence.json")
@@ -1697,14 +1725,22 @@ def coverage_notes(ev, O):
 
 def main():
     ap = argparse.ArgumentParser(description="Turn shipcheck evidence into findings")
-    ap.add_argument("run", help="the shipcheck run directory (or evidence.json)")
+    ap.add_argument("run", nargs="?", default=None,
+                    help="the shipcheck run directory (default: <repo>/outputs)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    if not args.run:
+        args.run = default_run_dir()
 
     try:
         data, run_dir = load(args.run)
+    except PermissionError:
+        unreadable(args.run, "evidence.json")
     except FileNotFoundError:
-        sys.exit("No evidence.json found in %s — run shipcheck.sh first." % args.run)
+        sys.exit(
+            "No evidence.json in %s.\n"
+            "Run the collector first — it now builds the report for you:\n"
+            "  sudo ./shipcheck.sh" % os.path.abspath(args.run))
     except json.JSONDecodeError as e:
         sys.exit("evidence.json is not valid JSON (%s). Re-run shipcheck.sh." % e)
 

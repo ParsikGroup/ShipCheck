@@ -5,6 +5,11 @@
 #   sudo ./shipcheck.sh --out ./run --app /srv/myapp   # app somewhere else
 #   sudo ./shipcheck.sh --out ./run --site https://example.com
 #   ./shipcheck.sh --app . --no-host --out ./run       # just the code
+#   sudo ./shipcheck.sh --collect-only                 # evidence only, no report
+#
+# With no arguments it scans this server plus the code in the current directory
+# and writes everything to <repo>/outputs, then builds the report for you.
+# You do not need to run analyze.py or report.py by hand.
 #
 # READ-ONLY. Installs nothing. Starts nothing. Changes nothing.
 # Never records the VALUE of a secret — only where it is and who can read it.
@@ -12,7 +17,7 @@
 set -uo pipefail
 umask 077
 
-OUT=""; APP=""; SITE=""; DO_HOST=1; DO_APP=1
+OUT=""; APP=""; SITE=""; DO_HOST=1; DO_APP=1; DO_REPORT=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --out)     OUT="${2:-}"; shift ;;
@@ -20,11 +25,26 @@ while [ $# -gt 0 ]; do
     --site)    SITE="${2:-}"; shift ;;
     --no-host) DO_HOST=0 ;;
     --no-app)  DO_APP=0 ;;
+    --collect-only) DO_REPORT=0 ;;
     -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac; shift
 done
-[ -z "$OUT" ] && OUT="./shipcheck-run"
+# Resolve our own location now, while the current directory is still where the
+# user launched us. The app scan cd's away, so anything computed later is wrong.
+SDIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Default output goes to <repo>/outputs — next to the code, easy to find,
+# and already covered by .gitignore. Falls back to the current directory if
+# the repo is somewhere unwritable (a system install, a read-only mount).
+if [ -z "$OUT" ]; then
+  _repo="$(cd "$SDIR/../../.." 2>/dev/null && pwd)"
+  if [ -n "$_repo" ] && { [ -w "$_repo" ] || mkdir -p "$_repo/outputs" 2>/dev/null; }; then
+    OUT="$_repo/outputs"
+  else
+    OUT="./shipcheck-outputs"
+  fi
+fi
 [ -z "$APP" ] && [ "$DO_APP" -eq 1 ] && APP="$PWD"
 # resolve now: the app scan cd's away, and a relative --out would follow it
 mkdir -p "$OUT" 2>/dev/null || { echo "cannot create $OUT" >&2; exit 1; }
@@ -515,7 +535,7 @@ printf '%s' "$SKIPPED" | tr '|' '\n' | grep -v '^$' > "$TMP/_skipped"
 
 cat > "$OUT/evidence.json" <<JSON
 {
-  "shipcheck": {"version": "0.1.0", "generated_at": $(jstr "$(date -u +%FT%TZ)"),
+  "shipcheck": {"version": "0.2.0", "generated_at": $(jstr "$(date -u +%FT%TZ)"),
                 "privileged": $( [ "$PRIV" -eq 1 ] && echo true || echo false ),
                 "checked_host": $( [ "$DO_HOST" -eq 1 ] && echo true || echo false ),
                 "checked_app": $( [ "$DO_APP" -eq 1 ] && echo true || echo false ),
@@ -642,7 +662,49 @@ done
 find "$OUT" -maxdepth 1 -type f -size 0 -delete 2>/dev/null
 
 echo "shipcheck: wrote $OUT/evidence.json" >&2
+
+# Build the report in the same run. Three separate commands was the single
+# biggest source of "it didn't work" — the second one had to be told where the
+# first one put things, and if you got that wrong you got a stack trace.
+REPORTED=0
+if [ "$DO_REPORT" -eq 1 ]; then
+  if have python3; then
+    if python3 "$SDIR/analyze.py" "$OUT" >/dev/null 2>"$TMP/analyze_err" \
+       && python3 "$SDIR/report.py" "$OUT" >/dev/null 2>"$TMP/report_err"; then
+      REPORTED=1
+    else
+      echo "shipcheck: the report step failed — your evidence is safe in $OUT/evidence.json" >&2
+      head -n 5 "$TMP/analyze_err" "$TMP/report_err" 2>/dev/null | sed 's/^/  /' >&2
+      echo "  Retry with: python3 $SDIR/analyze.py $OUT && python3 $SDIR/report.py $OUT" >&2
+    fi
+  else
+    echo "shipcheck: python3 not found — evidence collected, but no report." >&2
+    echo "  Install it (sudo apt install -y python3), then run:" >&2
+    echo "    python3 $SDIR/analyze.py $OUT && python3 $SDIR/report.py $OUT" >&2
+  fi
+fi
+
+# Running under sudo makes root the owner of everything we just wrote, at
+# mode 700 — which locks the actual user out of their own results. Hand it back.
+if [ -n "${SUDO_USER:-}" ] && [ "$(id -u)" -eq 0 ]; then
+  _gid="$(id -gn "$SUDO_USER" 2>/dev/null || echo "$SUDO_USER")"
+  chown -R "$SUDO_USER:$_gid" "$OUT" 2>/dev/null
+  chmod 755 "$OUT" 2>/dev/null
+  find "$OUT" -type f -exec chmod 644 {} + 2>/dev/null
+  find "$OUT" -maxdepth 1 -name '*.sh' -exec chmod 755 {} + 2>/dev/null
+fi
+
 [ -n "$SKIPPED" ] && echo "shipcheck: skipped -> $(printf '%s' "$SKIPPED" | tr '|' ' ')" >&2
 [ "$PRIV" -eq 0 ] && [ "$DO_HOST" -eq 1 ] && \
   echo "shipcheck: NOTE — run with sudo for the full server check (firewall, SSH, accounts)." >&2
+
+if [ "$REPORTED" -eq 1 ]; then
+  echo "" >&2
+  echo "  Done. Everything is in: $OUT" >&2
+  echo "" >&2
+  echo "    Read this first   less $OUT/REPORT.md" >&2
+  echo "    Give to your AI   $OUT/FIXME.md  (plus fix-recipes.md next to it)" >&2
+  echo "    Safe auto-fixes   sudo $OUT/fix.sh     then  $OUT/verify.sh" >&2
+  echo "" >&2
+fi
 exit 0

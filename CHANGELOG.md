@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.2.1 — 2026-09-14
+
+Usability. Nothing about what gets checked changed; the tools just stopped
+disagreeing with each other about where things live.
+
+### One command instead of three
+
+`shipcheck.sh` now runs `analyze.py` and `report.py` itself when it finishes, so
+`sudo ./shipcheck.sh` produces the full report on its own. The three-step
+sequence was the biggest source of "it didn't work": the second command had to
+be told where the first one put its output, and getting that wrong produced an
+argparse usage string rather than anything useful. `--collect-only` keeps the old
+behaviour of stopping at `evidence.json`.
+
+The run now ends by printing the absolute path of every file it wrote and what
+each one is for.
+
+### Output lands somewhere findable
+
+Results go to `<repo>/outputs` by default — next to the code, already in
+`.gitignore` — rather than a `shipcheck-run` directory relative to whatever
+directory you happened to be in. `analyze.py` and `report.py` default to the
+same place and take no argument. They still accept one, and still find runs left
+by older versions in the old locations.
+
+### sudo no longer locks you out of your own results
+
+A run under `sudo` left the output owned by root at mode 700, so `cd` into it
+failed with "Permission denied". The collector now hands ownership back to
+`$SUDO_USER`. If you hit this with an older run, `analyze.py` and `report.py`
+now say so explicitly and print the `chown` that fixes it, instead of raising
+`PermissionError`.
+
+### Fixed
+
+- `$0`-relative paths were resolved after the app scan had already changed
+  directory, so the chained report step looked for `analyze.py` at `/analyze.py`.
+
 ## 0.2.0 — 2026-09-14
 
 Three changes: shipcheck can no longer fail silently, it now reviews the

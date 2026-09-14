@@ -28,6 +28,34 @@ BADGE = {"critical": "CRITICAL", "high": "HIGH", "medium": "MEDIUM", "low": "LOW
 DOMAIN = {"code": "your code", "server": "your server", "site": "your live site"}
 
 
+
+def default_run_dir():
+    """Where shipcheck.sh puts things, so no argument is ever needed.
+
+    <repo>/outputs is the current default. The others are places older versions
+    wrote to, checked so an existing run is still found instead of producing a
+    confusing "no evidence" error.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(here, "..", "..", ".."))
+    for cand in (os.path.join(repo, "outputs"),
+                 "./shipcheck-outputs",
+                 "./shipcheck-run",
+                 os.path.join(here, "shipcheck-run")):
+        if os.path.isfile(os.path.join(cand, "evidence.json")):
+            return cand
+    return os.path.join(repo, "outputs")
+
+
+def unreadable(path, what):
+    """The sudo trap: root owns the run at mode 700 and you cannot read it."""
+    d = path if os.path.isdir(path) else os.path.dirname(path) or "."
+    sys.exit(
+        "Cannot read %s in %s — it is owned by root.\n"
+        "This happens when shipcheck.sh was run with sudo by an older version.\n"
+        "Fix it with:  sudo chown -R $USER:$USER %s" % (what, os.path.abspath(d), d))
+
+
 def load(run):
     p = run if run.endswith(".json") else os.path.join(run, "findings.json")
     with open(p) as fh:
@@ -582,13 +610,21 @@ def verify_sh(doc):
 
 def main():
     ap = argparse.ArgumentParser(description="Write the shipcheck reports and fix scripts")
-    ap.add_argument("run", help="the shipcheck run directory")
+    ap.add_argument("run", nargs="?", default=None,
+                    help="the shipcheck run directory (default: <repo>/outputs)")
     args = ap.parse_args()
+    if not args.run:
+        args.run = default_run_dir()
 
     try:
         doc = load(args.run)
+    except PermissionError:
+        unreadable(args.run, "findings.json")
     except FileNotFoundError:
-        sys.exit("No findings.json in %s — run analyze.py first." % args.run)
+        sys.exit(
+            "No findings.json in %s.\n"
+            "Run the collector first — it now builds the report for you:\n"
+            "  sudo ./shipcheck.sh" % os.path.abspath(args.run))
 
     out = args.run if os.path.isdir(args.run) else os.path.dirname(args.run)
     files = {

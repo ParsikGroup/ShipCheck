@@ -70,11 +70,14 @@ Prefer to run it by hand? The scripts are standalone:
 ```bash
 git clone https://github.com/ParsikGroup/ShipCheck
 cd ShipCheck/skills/shipcheck/scripts
+chmod +x *.sh
 
-sudo ./shipcheck.sh --out ~/shipcheck-run --app ~/myproject --site https://mysite.com
-python3 analyze.py ~/shipcheck-run
-python3 report.py  ~/shipcheck-run
+sudo ./shipcheck.sh --app ~/myproject --site https://mysite.com
 ```
+
+One command. It collects, analyses and writes the whole report, then prints
+where everything went — `ShipCheck/outputs/` by default. Every flag is optional:
+with none it scans this server plus the code in the current directory.
 
 ## What you get
 

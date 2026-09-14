@@ -57,14 +57,17 @@ rules of engagement. That is a different product.
 
 ```bash
 # on the server, or over SSH from their machine:
-sudo ./scripts/shipcheck.sh --out ./shipcheck-run --app /path/to/code --site https://their-site.com
-
-# then:
-python3 ./scripts/analyze.py ./shipcheck-run
-python3 ./scripts/report.py  ./shipcheck-run
+sudo ./scripts/shipcheck.sh --app /path/to/code --site https://their-site.com
 ```
 
-Every flag is optional. `--no-host` checks only code, `--no-app` only the server.
+That is the whole run. The collector builds the report itself when it finishes —
+do not tell the user to run `analyze.py` and `report.py` by hand. Everything
+lands in `<repo>/outputs`, and the last lines of the run print the exact paths.
+
+Every flag is optional. With none at all it scans this server plus the code in
+the current directory. `--no-host` checks only code, `--no-app` only the server,
+`--out DIR` puts the results somewhere else, `--collect-only` stops after
+`evidence.json`.
 `--site` adds the live-site checks and is worth including whenever they have a URL.
 
 **Push for sudo.** Without it the firewall, SSH config, accounts and file
